@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MTG Receipt Printer</title>
+
+<style>
+:root {
+  --bg: #e9ecef;
+  --card-bg: #ffffff;
+  --text: #000000;
+  --accent: #222222;
+}
+
+body.dark {
+  --bg: #121212;
+  --card-bg: #1e1e1e;
+  --text: #f1f1f1;
+  --accent: #444444;
+}
+
+body {
+  font-family: monospace;
+  background: var(--bg);
+  color: var(--text);
+  margin: 0;
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.container {
+  width: 100%;
+  max-width: 500px;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+input, button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  font-family: monospace;
+  font-size: 16px;
+  box-sizing: border-box;
+  border-radius: 6px;
+}
+
+input { border: 1px solid #aaa; }
+
+button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+button:hover { opacity: 0.85; }
+
+  .suggestions {
+  background: var(--card-bg);
+  border: 1px solid #aaa;
+  border-top: none;
+  max-height: 200px;
+  overflow-y: auto;
+  position: absolute;
+  width: 478px;
+  z-index: 10;
+}
+
+.suggestion-item {
+  padding: 10px;
+  cursor: pointer;
+}
+
+.suggestion-item:hover {
+  background: var(--accent);
+  color: white;
+}
+
+  #card {
+    color: black !important;
+    background: white !important;
+    border-color: black !important;
+  }
+
+  #card {
+    background: white;
+    padding: 10px;
+    margin-top: 20px;
+    border: 1px dashed black;
+    white-space: pre-wrap;
+    display: inline-block;
+    width: auto;
+    max-width: 100%;
+  }
+
+  
+@media print {
+ #card {
+    color: black !important;
+    background: white !important;
+    border-color: black !important;
+  }
+  body {
+    display: block !important;
+    min-height: auto !important;
+    padding: 0 !important;
+  }
+
+  .container {
+    display: block !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  #card {
+    display: block;
+    visibility: visible;
+    position: absolute;
+    top: -20px;
+    right: 0px;
+    max-width: 200px;
+    font-size: 10px;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+  <h2>MTG Receipt Printer</h2>
+
+  <input id="cardName" placeholder="Enter card name (e.g. Sol Ring)" />
+
+  <div id="suggestions" class="suggestions"></div>
+
+  <button onclick="getCard()">Generate</button>
+  <button onclick="window.print()">Print</button>
+
+  <div class="toggle">
+    <button onclick="toggleDark()">Toggle Dark Mode</button>
+  </div>
+
+  <div id="card"></div>
+</div>
+
+<script>
+function toggleDark() { document.body.classList.toggle("dark"); }
+
+const input = document.getElementById("cardName");
+const suggestionsBox = document.getElementById("suggestions");
+
+input.addEventListener("input", async () => {
+  const query = input.value.trim();
+
+  if (query.length < 2) {
+    suggestionsBox.innerHTML = "";
+    return;
+  }
+
+  try {
+    const res = await fetch(`https://api.scryfall.com/cards/autocomplete?q=${encodeURIComponent(query)}`);
+    const data = await res.json();
+
+    suggestionsBox.innerHTML = "";
+
+    data.data.slice(0, 8).forEach(name => {
+      const div = document.createElement("div");
+      div.className = "suggestion-item";
+      div.textContent = name;
+
+      div.onclick = () => {
+        input.value = name;
+        suggestionsBox.innerHTML = "";
+      };
+
+      suggestionsBox.appendChild(div);
+    });
+
+  } catch (err) {
+    suggestionsBox.innerHTML = "";
+  }
+});
+
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".container")) {
+    suggestionsBox.innerHTML = "";
+  }
+});
+
+async function getCard() {
+  const name = document.getElementById("cardName").value.trim();
+  const card = document.getElementById("card");
+
+  if (!name) {
+    card.textContent = "Enter a card name.";
+    return;
+  }
+
+  card.textContent = "Loading...";
+
+  try {
+    const res = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name)}`);
+    const data = await res.json();
+
+    if (data.object === "error") {
+      card.textContent = "Card not found.";
+      return;
+    }
+
+    card.textContent = formatCard(data);
+
+  } catch (err) {
+    card.textContent = "Error fetching card.";
+  }
+}
+
+function formatCard(card) {
+  const line = "-".repeat(32);
+  let text = "";
+
+  text += `${card.name.padEnd(22)} ${card.mana_cost || ""}\n`;
+  text += line + "\n";
+  text += `${card.type_line}\n\n`;
+
+  if (card.oracle_text) {
+    text += `${card.oracle_text}\n\n`;
+  }
+
+if (card.power && card.toughness) {
+  text += `${card.power}/${card.toughness}\n`;
+} else if (card.loyalty) {
+  text += `[${card.loyalty}]\n`;
+}
+
+  text += "\n" + "=".repeat(32);
+  return text;
+}
+</script>
+
+</body>
+</html>
